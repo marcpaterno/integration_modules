@@ -1,0 +1,58 @@
+---
+title: CosmoSIS Integration Modules
+author: Marc Paterno
+date: last-modified
+format:
+  html:
+    theme: cerulean
+---
+
+## Introduction to integration modules
+
+An *integration module* calculates one or more (typically many) related integrals.
+They are related in that they are defined by a single *integrand*: a function of $n$ variables to be integrated.
+This function is specified by a user-defined `class` (or `struct`) that has a *function call operator*: `double operator()(double x, ...)` specifying the integrand.
+Each such function takes some specific number of arguments; any number greater than zero is acceptible.
+
+Conceptually, the user's class represents a *function* (strictly speaking it is a *callable object*).
+The integral calculated by the integration module is always a definite integral over all the arguments of the function.
+
+For a concrete example:
+```
+struct TwoArgFunction {
+  double operator()(double x, double y) { return ...;}
+}
+```
+is a representation of:
+$$ f(x,y)$$
+and the integral $I$ to be calculated is then:
+$$I = \int_a^b dx \int_c^d dy \, f(x, y)$$
+
+In this example, the sequence of pairs of numbers $[(a,b), (c,d)]$ specifies one *volume of integration*.
+The dimensionality of the integral (here 2) has to be the same as the length of the sequence of pairs.
+A single module can be configured to calculate the integral for many volumes of integration for each CosmoSIS MCMC sample.
+
+In addition to the function call `operator()(...)` the user's `class` or `struct` must have a `create_volumes_of_integration` function that reads the CosmoSIS configuration (from a `DataBlock`) to configure the volumes of integration.
+This configuration must specify the correct number of variables of integration; an error in the code will produce a compilation failure (which might be ugly).
+An error in the `ini` file configuration of the module will yield a (possibly obscure) runtime failure.
+
+## That grid thing
+
+Sometimes (often?) we have functions that contain settable parameters, *e.g.*
+$$ f_{\kappa}(x, y) = \sin{\kappa x} \cos{y}$$
+The value of the related integral $I(\kappa)$ depends on of the value of $\kappa$:
+$$ I(\kappa) =  \int_a^b dx \int_c^d dy \, f_\kappa(x, y)$$
+We may want to evaluate this integral for a discrete set of values of $\kappa$.
+We can specify these values using an index:
+$$I_i = I(\kappa_i) = \int_a^b dx \int_c^d dy \, f_{{\kappa}_i}(x, y)$$
+Sometimes the *parameter space* for these discrete parameters is multidimensional.
+If we have two parameters, this would look like:
+$$I_i = \int_a^b dx \int_c^d dy \, f_{{\kappa}_i, {\lambda}_i}(x, y)$$
+A single call to the integration module will calculate the set of values:
+$$  {\cal S}  = \{ I_i, i \, \in 0 \ldots n\}$$
+The integration module puts the set $\cal S$ of values into the `DataBlock` for processing by a later likelihood module.
+
+Integration modules support this thorugh a (poorly-named) concept called a *grid*.
+The grid is the set of points at which the integral is evaluated for each MCMC sample in CosmoSIS.
+It may or may not actually form a "grid" in $m$-dimensional space.
+The user's `class` or `struct` must have yet another member function `set_grid_points` that specifies the "grid" over which the integrals will be calculated.
